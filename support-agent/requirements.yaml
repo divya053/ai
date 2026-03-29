@@ -1,0 +1,17 @@
+packages:
+  "framer-motion": "For smooth page transitions, list animations, and agent reasoning trace reveals"
+  "date-fns": "For formatting ticket and evaluation timestamps"
+  "react-hook-form": "For robust form state management in the resolver and evaluation inputs"
+  "@hookform/resolvers": "For Zod schema validation with react-hook-form"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility to safely merge Tailwind CSS classes"
+
+images:
+  - path: "artifacts/support-agent/public/images/logo.png"
+    description: "Minimalist, premium geometric logo for an AI enterprise tool. Composed of sharp, precise interlocking shapes in deep sapphire blue and vibrant azure on a transparent background. Crisp, vector-style."
+    aspect_ratio: "1:1"
+
+notes:
+  - "Assuming React Query hooks and types are exported from @workspace/api-client-react"
+  - "Using Wouter for routing"
+  - "Building a responsive split-pane layout for the main resolver"
