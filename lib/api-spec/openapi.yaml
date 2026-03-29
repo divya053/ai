@@ -1,0 +1,396 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: E-commerce Support Resolution Agent API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: support
+    description: Support ticket resolution
+  - name: evaluation
+    description: Evaluation and reporting
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /support/resolve:
+    post:
+      operationId: resolveTicket
+      tags: [support]
+      summary: Resolve a support ticket
+      description: |
+        Runs the full multi-agent pipeline: Triage → Policy Retriever → Resolution Writer → Compliance/Safety Agent.
+        Returns a structured resolution with citations.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TicketRequest"
+      responses:
+        "200":
+          description: Ticket resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketResolution"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /support/tickets:
+    get:
+      operationId: listTickets
+      tags: [support]
+      summary: List all resolved tickets
+      responses:
+        "200":
+          description: List of tickets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TicketRecord"
+
+  /support/tickets/{id}:
+    get:
+      operationId: getTicket
+      tags: [support]
+      summary: Get a specific ticket by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ticket details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketRecord"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /support/policies:
+    get:
+      operationId: listPolicies
+      tags: [support]
+      summary: List all policy documents in the knowledge base
+      responses:
+        "200":
+          description: List of policy documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PolicyDocument"
+
+  /evaluation/run:
+    post:
+      operationId: runEvaluation
+      tags: [evaluation]
+      summary: Run the full evaluation test set
+      description: Runs all 20 evaluation tickets and returns metrics and results
+      responses:
+        "200":
+          description: Evaluation results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluationReport"
+
+  /evaluation/results:
+    get:
+      operationId: getEvaluationResults
+      tags: [evaluation]
+      summary: Get the most recent evaluation results
+      responses:
+        "200":
+          description: Latest evaluation report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluationReport"
+        "404":
+          description: No evaluation run yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    OrderContext:
+      type: object
+      description: Structured context about the order
+      properties:
+        order_id:
+          type: ["string", "null"]
+        order_date:
+          type: ["string", "null"]
+        delivery_date:
+          type: ["string", "null"]
+        item_category:
+          type: ["string", "null"]
+          description: "e.g. perishable, apparel, electronics, hygiene, final_sale"
+        fulfillment_type:
+          type: ["string", "null"]
+          description: "first_party or marketplace_seller"
+        shipping_region:
+          type: ["string", "null"]
+        order_status:
+          type: ["string", "null"]
+          description: "placed, shipped, delivered, returned"
+        payment_method:
+          type: ["string", "null"]
+        order_value:
+          type: ["number", "null"]
+
+    TicketRequest:
+      type: object
+      required:
+        - ticket_text
+      properties:
+        ticket_text:
+          type: string
+          description: The customer support ticket (free-form text)
+        order_context:
+          $ref: "#/components/schemas/OrderContext"
+
+    Citation:
+      type: object
+      required:
+        - document
+        - section
+        - text
+      properties:
+        document:
+          type: string
+        section:
+          type: string
+        text:
+          type: string
+        url:
+          type: ["string", "null"]
+        chunk_id:
+          type: ["string", "null"]
+
+    TicketResolution:
+      type: object
+      required:
+        - classification
+        - decision
+        - rationale
+        - citations
+        - customer_response
+        - next_steps
+      properties:
+        classification:
+          type: string
+          description: "Issue type: refund, shipping, payment, promo, fraud, dispute, other"
+        classification_confidence:
+          type: ["string", "null"]
+          description: "high, medium, low"
+        clarifying_questions:
+          type: array
+          items:
+            type: string
+          description: Questions needed before full resolution (max 3)
+        decision:
+          type: string
+          description: "approve, deny, partial, needs_escalation, needs_more_info"
+        rationale:
+          type: string
+          description: Policy-based explanation of the decision
+        citations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Citation"
+        customer_response:
+          type: string
+          description: Ready-to-send customer-facing message
+        next_steps:
+          type: string
+          description: Internal notes and recommended support team actions
+        compliance_check:
+          type: ["string", "null"]
+          description: Result from the compliance/safety agent
+        agent_trace:
+          type: ["string", "null"]
+          description: Internal log of agent reasoning steps
+
+    TicketRecord:
+      type: object
+      required:
+        - id
+        - ticket_text
+        - resolution
+        - created_at
+      properties:
+        id:
+          type: integer
+        ticket_text:
+          type: string
+        order_context:
+          $ref: "#/components/schemas/OrderContext"
+        resolution:
+          $ref: "#/components/schemas/TicketResolution"
+        created_at:
+          type: string
+          format: date-time
+
+    PolicyDocument:
+      type: object
+      required:
+        - id
+        - title
+        - category
+        - content
+        - source_url
+        - accessed_date
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        category:
+          type: string
+          description: "returns_refunds, cancellations, shipping, promotions, disputes"
+        content:
+          type: string
+        source_url:
+          type: string
+        accessed_date:
+          type: string
+
+    EvaluationMetrics:
+      type: object
+      required:
+        - total_tickets
+        - citation_coverage_rate
+        - correct_escalation_rate
+        - unsupported_claim_rate
+      properties:
+        total_tickets:
+          type: integer
+        citation_coverage_rate:
+          type: number
+          description: Percentage of responses that include citations
+        correct_escalation_rate:
+          type: number
+          description: Percentage of conflict/not-in-policy cases correctly escalated
+        unsupported_claim_rate:
+          type: number
+          description: Percentage of responses with unsupported claims
+        standard_correct:
+          type: integer
+        exception_correct:
+          type: integer
+        conflict_correct:
+          type: integer
+        not_in_policy_correct:
+          type: integer
+
+    EvaluationTicketResult:
+      type: object
+      required:
+        - ticket_id
+        - category
+        - ticket_text
+        - expected_decision
+        - actual_decision
+        - passed
+        - resolution
+      properties:
+        ticket_id:
+          type: string
+        category:
+          type: string
+          description: "standard, exception, conflict, not_in_policy"
+        ticket_text:
+          type: string
+        expected_decision:
+          type: string
+        actual_decision:
+          type: string
+        passed:
+          type: boolean
+        resolution:
+          $ref: "#/components/schemas/TicketResolution"
+
+    EvaluationReport:
+      type: object
+      required:
+        - run_at
+        - metrics
+        - results
+        - example_runs
+      properties:
+        run_at:
+          type: string
+          format: date-time
+        metrics:
+          $ref: "#/components/schemas/EvaluationMetrics"
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluationTicketResult"
+        example_runs:
+          type: object
+          description: Three highlighted example runs
+          properties:
+            exception_handled:
+              $ref: "#/components/schemas/EvaluationTicketResult"
+            conflict_escalated:
+              $ref: "#/components/schemas/EvaluationTicketResult"
+            correct_abstention:
+              $ref: "#/components/schemas/EvaluationTicketResult"
